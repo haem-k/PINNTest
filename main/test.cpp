@@ -1,6 +1,7 @@
 #include <network.h>
 #include <tensorboard_logger.h>
 #include <iostream>
+#include <filesystem>
 
 class Test : public agl::App
 {
@@ -9,6 +10,15 @@ public:
     int seed = 1230;
     int num_sample = 10000;
     const float gravity = 9.8;
+    const std::string test_name = "first_train";
+    const std::string log_dir = "./tensorboard/first_train";
+    const std::string log_file = log_dir + "/tfevents.pb";
+
+    void check_create_dir(std::string dir)
+    {
+        if (agl::file_check(dir) == false)
+            std::filesystem::create_directories(dir);
+    }
 
     void start() override
     {
@@ -25,12 +35,6 @@ public:
         torch::cuda::manual_seed(seed);
 
         // Set up network
-        Tensor input = torch::rand({num_sample, 3}).to(device).set_requires_grad(true);
-        
-        Tensor t0 = torch::ones_like(input);
-        t0.index_put_({Slice(), Slice(1, 3)}, 1.0);
-        Tensor input_t0 = input * t0; // * 시간을 제외한 나머지 두 개의 input은 값 유지, 시간만 0으로 강제
-
         FC fcnet = FC(3, 2);
         Grad network = Grad(fcnet);
         network->to(device);
@@ -39,31 +43,39 @@ public:
         auto opt_option = torch::optim::LBFGSOptions();
         torch::optim::LBFGS optimizer = torch::optim::LBFGS(network->parameters(), opt_option);
 
-        auto cost = [&]()
-        {
-            optimizer.zero_grad();
-
-            Tensor r, drdt, d2rdt2;
-            Tensor r_t0, drdt_t0, d2rdt2_t0;
-            std::tie(r, drdt, d2rdt2) = network(input);
-            std::tie(r_t0, drdt_t0, d2rdt2_t0) = network(input_t0);
-            
-            // Compute loss
-            Tensor acceleration = torch::nn::functional::mse_loss(d2rdt2, torch::ones_like(d2rdt2) * -gravity);
-            Tensor init_condition = torch::nn::functional::mse_loss(r_t0, torch::zeros_like(r_t0));
-            Tensor loss = acceleration + init_condition;
-
-            // Compute gradient
-            loss.backward({}, true);
-            return loss;
-        };
-
-        // torch::optim::Optimizer::LossClosure closure = torch::optim::Optimizer::LossClosure()
+        check_create_dir(log_dir);
+        TensorBoardLogger train_logger(log_file.c_str());
         for (int i = 0; i < 50; ++i)
         {
-            optimizer.step(cost); // for LBFGS
-            std::cout << "[Iter: " << i << "] Loss: " << cost().mean().item<float>() << std::endl;
+            // Ready input
+            Tensor input = torch::rand({num_sample, 3}).to(device).set_requires_grad(true);
+            Tensor t0 = torch::ones_like(input);
+            t0.index_put_({Slice(), Slice(1, 3)}, 1.0);
+            Tensor input_t0 = input * t0; // * 시간을 제외한 나머지 두 개의 input은 값 유지, 시간만 0으로 강제
 
+            auto cost = [&]()
+            {
+                optimizer.zero_grad();
+
+                Tensor r, drdt, d2rdt2;
+                Tensor r_t0, drdt_t0, d2rdt2_t0;
+                std::tie(r, drdt, d2rdt2) = network(input);
+                std::tie(r_t0, drdt_t0, d2rdt2_t0) = network(input_t0);
+
+                // Compute loss
+                Tensor acceleration = torch::nn::functional::mse_loss(d2rdt2, torch::ones_like(d2rdt2) * -gravity);
+                Tensor init_condition = torch::nn::functional::mse_loss(r_t0, torch::zeros_like(r_t0));
+                Tensor loss = acceleration + init_condition;
+
+                // Compute gradient
+                loss.backward({}, true);
+                return loss;
+            };
+
+            optimizer.step(cost); // for LBFGS
+            float loss_val = cost().mean().item<float>();
+            train_logger.add_scalar("train/loss", i, loss_val);
+            std::cout << "[Iter: " << i << "] Loss: " << loss_val << std::endl;
         }
         exit(0);
 
