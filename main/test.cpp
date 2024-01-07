@@ -62,10 +62,9 @@ public:
         for (int i = 0; i < 50; ++i)
         {
             optimizer.step(cost); // for LBFGS
-            // cost(); optimizer.step(); // for SGD
-            std::cout << i << std::endl;
+            std::cout << "[Iter: " << i << "] Loss: " << cost().mean().item<float>() << std::endl;
+
         }
-        std::cout << cost() << std::endl;
         exit(0);
 
         // TODO: Test PINN and render sphere
