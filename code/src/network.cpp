@@ -1,5 +1,4 @@
 #include "network.h"
-using namespace torch::indexing;
 
 FCImpl::FCImpl(int in_channel, int out_channel) : linear1(register_module("linear1", Linear(LinearOptions(in_channel, 128)))),
                                                   linear2(register_module("linear2", Linear(LinearOptions(128, 128)))),
@@ -24,14 +23,21 @@ GradImpl::GradImpl(FC fcnet) : fcnet(register_module("fcnet", FC(fcnet)))
 std::tuple<Tensor, Tensor, Tensor> GradImpl::forward(Tensor x)
 {
     // Forward through fcnet
-    Tensor r = fcnet(x);
+    Tensor r = fcnet(x); // r: [num_sample, 2], x: [num_sample, 3]
 
-    // Compute second derivative of r
-    Tensor drdt = torch::autograd::grad({r}, {x}, {torch::ones_like(r)}, true, true)[0].set_requires_grad(true);
-    Tensor d2rdt2 = torch::autograd::grad({drdt}, {x}, {torch::ones_like(drdt)}, true, true)[0];
+    // Vectors to multiply to Jacobian matrix
+    Tensor x_vec = torch::zeros_like(r).index_put_({Slice(), Slice(0, 1)}, 1.0);
+    Tensor z_vec = torch::zeros_like(r).index_put_({Slice(), Slice(1, 2)}, 1.0);
 
-    drdt = drdt.index({Slice(), Slice(0, 1)});
-    d2rdt2 = d2rdt2.index({Slice(), Slice(0, 1)});
+    // first order derivative 
+    Tensor drdt_x = torch::autograd::grad({r}, {x}, {x_vec}, true, true)[0].set_requires_grad(true).index({Slice(), Slice(0, 1)}); // [num_sample, 1]
+    Tensor drdt_z = torch::autograd::grad({r}, {x}, {z_vec}, true, true)[0].set_requires_grad(true).index({Slice(), Slice(0, 1)}); // [num_sample, 1]
+    Tensor drdt = torch::cat({drdt_x, drdt_z}, 1);
+
+    // second order derivative
+    Tensor d2rdt2_x = torch::autograd::grad({drdt_x}, {x}, {torch::ones_like(drdt_x)}, true, true)[0].index({Slice(), Slice(0, 1)}); // [num_sample, ?]
+    Tensor d2rdt2_z = torch::autograd::grad({drdt_z}, {x}, {torch::ones_like(drdt_z)}, true, true)[0].index({Slice(), Slice(0, 1)}); // [num_sample, ?]
+    Tensor d2rdt2 = torch::cat({d2rdt2_x, d2rdt2_z}, 1);
 
     return {r, drdt, d2rdt2};
 }

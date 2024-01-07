@@ -1,6 +1,8 @@
 #pragma once
 #include <aOpenGL.h>
 #include <aLibTorch.h>
+using namespace torch::indexing;
+
 
 class FCImpl: public nnModule
 {
