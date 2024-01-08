@@ -6,16 +6,19 @@
 class Test : public agl::App
 {
 public:
-    int nof = 50;
-    int seed = 1230;
-    const int num_sample = 10000;
-    const int input_feature_dim = 3;
-    const int output_feature_dim = 2;
-    const int num_epoch = 50;
-    const float gravity = 9.8;
     const std::string test_name = "first_train";
     const std::string log_dir = "./tensorboard/first_train";
     const std::string log_file = log_dir + "/tfevents.pb";
+    const std::string network_dir = "./model/" + test_name;
+
+    const int seed = 1230;
+    const int num_sample = 10000;
+    const int input_feature_dim = 3;
+    const int output_feature_dim = 2;
+    const int num_epoch = 100;
+
+    float gravity = 9.8;
+    int nof = 50;
 
     void check_create_dir(std::string dir)
     {
@@ -25,7 +28,7 @@ public:
 
     void start() override
     {
-        // TODO: Train PINN for projectile movement
+        // Train PINN for projectile motion
         // Get device
         torch::Device device(torch::kCPU);
         if (torch::cuda::is_available())
@@ -45,13 +48,13 @@ public:
         // Set up optimizer
         auto opt_option = torch::optim::LBFGSOptions();
         torch::optim::LBFGS optimizer = torch::optim::LBFGS(network->parameters(), opt_option);
-        
+
         // Ready input
         Tensor input = torch::rand({num_sample, input_feature_dim}).to(device).set_requires_grad(true);
         Tensor t0 = torch::zeros_like(input);
         t0.index_put_({Slice(), Slice(1, 3)}, 1.0);
         Tensor input_t0 = input * t0; // * 시간을 제외한 나머지 두 개의 input은 값 유지, 시간만 0으로 강제
-        
+
         // Ready GT
         Tensor acceleration_gt = torch::ones({num_sample, output_feature_dim}) * -gravity;
         acceleration_gt = acceleration_gt.index_put_({Slice(), Slice(0, 1)}, 0).to(device);
@@ -80,6 +83,14 @@ public:
 
                 // Compute gradient
                 loss.backward({}, true);
+                if(torch::isinf(loss).item<bool>() == true)
+                {
+                    std::cout << "acceleration: " << acceleration.item<float>() << std::endl;
+                    std::cout << "init_position: " << init_position.item<float>() << std::endl;
+                    std::cout << "init_velocity: " << init_velocity.item<float>() << std::endl;
+                    exit(0);
+                }
+
                 return loss;
             };
 
@@ -87,7 +98,18 @@ public:
             float loss_val = cost().mean().item<float>();
             train_logger.add_scalar("train/loss", i, loss_val);
             std::cout << "[Iter: " << i << "] Loss: " << loss_val << std::endl;
+
+            if (loss_val < 1e-5)
+                break;
         }
+
+        // Save the trained weights
+        std::cout << "\nTraining completed!\nSaving model...";
+        check_create_dir(network_dir);
+        torch::save(network, network_dir + "/network.pt");
+        std::cout << network_dir + "/network.pt"
+                  << " saved!" << std::endl;
+
         exit(0);
 
         // TODO: Test PINN and render sphere
