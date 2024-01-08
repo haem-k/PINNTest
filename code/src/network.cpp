@@ -1,9 +1,9 @@
 #include "network.h"
 
-FCImpl::FCImpl(int in_channel, int out_channel) : linear1(register_module("linear1", Linear(LinearOptions(in_channel, 128)))),
-                                                  linear2(register_module("linear2", Linear(LinearOptions(128, 128)))),
-                                                  linear3(register_module("linear3", Linear(LinearOptions(128, 128)))),
-                                                  linear4(register_module("linear4", Linear(LinearOptions(128, out_channel))))
+FCImpl::FCImpl(int in_channel, int out_channel) : linear1(register_module("linear1", Linear(LinearOptions(in_channel, 64)))),
+                                                  linear2(register_module("linear2", Linear(LinearOptions(64, 64)))),
+                                                  linear3(register_module("linear3", Linear(LinearOptions(64, 64)))),
+                                                  linear4(register_module("linear4", Linear(LinearOptions(64, out_channel))))
 {
 }
 
