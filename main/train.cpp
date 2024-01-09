@@ -6,8 +6,8 @@
 class Test : public agl::App
 {
 public:
-    const std::string test_name = "first_train";
-    const std::string log_dir = "./tensorboard/first_train";
+    const std::string test_name = "gravity_1";
+    const std::string log_dir = "./tensorboard/" + test_name;
     const std::string log_file = log_dir + "/tfevents.pb";
     const std::string network_dir = "./model/" + test_name;
 
@@ -17,7 +17,7 @@ public:
     const int output_feature_dim = 2;
     const int num_epoch = 100;
 
-    float gravity = 9.8;
+    float gravity = 1;
     int nof = 50;
 
     void check_create_dir(std::string dir)
@@ -74,7 +74,7 @@ public:
                 Tensor r_t0, drdt_t0, d2rdt2_t0;
                 std::tie(r, drdt, d2rdt2) = network(input);
                 std::tie(r_t0, drdt_t0, d2rdt2_t0) = network(input_t0);
-
+                
                 // Compute loss
                 Tensor acceleration = torch::nn::functional::mse_loss(d2rdt2, acceleration_gt);
                 Tensor init_position = torch::nn::functional::mse_loss(r_t0, init_position_gt);
@@ -83,11 +83,14 @@ public:
 
                 // Compute gradient
                 loss.backward({}, true);
-                if(torch::isinf(loss).item<bool>() == true)
+                if(torch::isinf(loss).item<bool>() == true | loss.item<float>() > 1e+7)
                 {
                     std::cout << "acceleration: " << acceleration.item<float>() << std::endl;
+                    std::cout << "\td2rdt2: " << d2rdt2[0] << std::endl;
                     std::cout << "init_position: " << init_position.item<float>() << std::endl;
+                    std::cout << "\tr_t0: " << r_t0[0] << std::endl;
                     std::cout << "init_velocity: " << init_velocity.item<float>() << std::endl;
+                    std::cout << "\tdrdt_t0: " << drdt_t0[0] << std::endl;
                     exit(0);
                 }
 
@@ -99,7 +102,7 @@ public:
             train_logger.add_scalar("train/loss", i, loss_val);
             std::cout << "[Iter: " << i << "] Loss: " << loss_val << std::endl;
 
-            if (loss_val < 1e-5)
+            if (loss_val < 1e-6)
                 break;
         }
 
