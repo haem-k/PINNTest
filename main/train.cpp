@@ -17,7 +17,7 @@ public:
     const int output_feature_dim = 2;
     const int num_epoch = 100;
 
-    float gravity = 1;
+    float gravity = 9.8;
     int nof = 50;
 
     void check_create_dir(std::string dir)
@@ -103,7 +103,7 @@ public:
             train_logger.add_scalar("train/loss", i, loss_val);
             std::cout << "[Iter: " << i << "] Loss: " << loss_val << std::endl;
 
-            if (loss_val < 2e-5)
+            if (loss_val < 1e-4)
                 break;
         }
 
