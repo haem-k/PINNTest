@@ -6,10 +6,10 @@
 class Test : public agl::App
 {
 public:
-    const std::string test_name = "gravity_1";
+    const std::string test_name = "first_train";
     const std::string log_dir = "./tensorboard/" + test_name;
     const std::string log_file = log_dir + "/tfevents.pb";
-    const std::string network_dir = "./model/" + test_name;
+    const std::string model_dir = "./model/" + test_name;
 
     const int seed = 1230;
     const int num_sample = 10000;
@@ -77,9 +77,10 @@ public:
                 
                 // Compute loss
                 Tensor acceleration = torch::nn::functional::mse_loss(d2rdt2, acceleration_gt);
-                Tensor init_position = torch::nn::functional::mse_loss(r_t0, init_position_gt);
+                Tensor init_position = torch::nn::functional::mse_loss(r_t0, init_position_gt); // ! 이게 유독 터지는데?
                 Tensor init_velocity = torch::nn::functional::mse_loss(drdt_t0, init_velocity_gt);
                 Tensor loss = acceleration + init_position + init_velocity;
+                // Tensor loss = acceleration + init_velocity;
 
                 // Compute gradient
                 loss.backward({}, true);
@@ -102,15 +103,15 @@ public:
             train_logger.add_scalar("train/loss", i, loss_val);
             std::cout << "[Iter: " << i << "] Loss: " << loss_val << std::endl;
 
-            if (loss_val < 1e-6)
+            if (loss_val < 2e-5)
                 break;
         }
 
         // Save the trained weights
         std::cout << "\nTraining completed!\nSaving model...";
-        check_create_dir(network_dir);
-        torch::save(network, network_dir + "/network.pt");
-        std::cout << network_dir + "/network.pt"
+        check_create_dir(model_dir);
+        torch::save(network, model_dir + "/model.pt");
+        std::cout << model_dir + "/model.pt"
                   << " saved!" << std::endl;
 
         exit(0);
