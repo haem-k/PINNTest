@@ -74,26 +74,27 @@ public:
                 Tensor r_t0, drdt_t0, d2rdt2_t0;
                 std::tie(r, drdt, d2rdt2) = network(input);
                 std::tie(r_t0, drdt_t0, d2rdt2_t0) = network(input_t0);
-                
+
                 // Compute loss
                 Tensor acceleration = torch::nn::functional::mse_loss(d2rdt2, acceleration_gt);
                 Tensor init_position = torch::nn::functional::mse_loss(r_t0, init_position_gt); // ! 이게 유독 터지는데?
                 Tensor init_velocity = torch::nn::functional::mse_loss(drdt_t0, init_velocity_gt);
                 Tensor loss = acceleration + init_position + init_velocity;
-                // Tensor loss = acceleration + init_velocity;
 
                 // Compute gradient
                 loss.backward({}, true);
+                /*
                 if(torch::isinf(loss).item<bool>() == true | loss.item<float>() > 1e+7)
                 {
                     std::cout << "acceleration: " << acceleration.item<float>() << std::endl;
-                    std::cout << "\td2rdt2: " << d2rdt2[0] << std::endl;
+                    std::cout << "d2rdt2: " << "\n" << d2rdt2[0] << std::endl;
                     std::cout << "init_position: " << init_position.item<float>() << std::endl;
-                    std::cout << "\tr_t0: " << r_t0[0] << std::endl;
+                    std::cout << "r_t0: " << "\n" << r_t0[0] << std::endl;
                     std::cout << "init_velocity: " << init_velocity.item<float>() << std::endl;
-                    std::cout << "\tdrdt_t0: " << drdt_t0[0] << std::endl;
+                    std::cout << "drdt_t0: " << "\n" << drdt_t0[0] << std::endl;
                     exit(0);
                 }
+                */
 
                 return loss;
             };
